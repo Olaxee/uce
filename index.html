@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Écu Game</title>
+<title>Écu Game - Login Custom</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -16,9 +16,10 @@
 </style>
 </head>
 <body>
+
 <div class="container" id="auth-container">
   <h2>Connexion / Inscription</h2>
-  <input type="email" id="email" placeholder="Email">
+  <input type="text" id="username" placeholder="Pseudo">
   <input type="password" id="password" placeholder="Mot de passe">
   <button id="login-btn">Se connecter</button>
   <button id="signup-btn">S'inscrire</button>
@@ -27,79 +28,107 @@
 
 <div class="container hidden" id="app-container">
   <div class="header">
-    <div id="username">Utilisateur</div>
+    <div id="username-display">Utilisateur</div>
     <div id="ecu">Écu : 100</div>
     <button id="logout-btn" style="background:#f44336">Déconnexion</button>
   </div>
-  <p>Bienvenue dans le jeu ! Ici tu peux afficher et gérer ton Écu.</p>
+  <p>Bienvenue dans votre espace !</p>
 </div>
 
 <script>
-const SUPABASE_URL = 'https://oaxaosribzxsocdngpjr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9heGFvc3JpYnp4c29jZG5ncGpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MTUzMjMsImV4cCI6MjA3OTM5MTMyM30.sFMWA7mF5eDHNITKbPOIJi1Ftf0qZ-V9N3ALVHcO-Uo';
+const SUPABASE_URL = "https://oaxaosribzxsocdngpjr.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9heGFvc3JpYnp4c29jZG5ncGpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MTUzMjMsImV4cCI6MjA3OTM5MTMyM30.sFMWA7mF5eDHNITKbPOIJi1Ftf0qZ-V9N3ALVHcO-Uo";
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Fonction de hashage SHA-256
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2,"0")).join("");
+}
+
 const authContainer = document.getElementById('auth-container');
 const appContainer = document.getElementById('app-container');
-const message = document.getElementById('message');
-const usernameDiv = document.getElementById('username');
-const ecuDiv = document.getElementById('ecu');
+const msg = document.getElementById('message');
 
-// Vérifie si l'utilisateur est connecté
+// Vérifier si l'utilisateur est connecté
 async function checkUser() {
-  const { data: { session } } = await client.auth.getSession();
-  if(session){
-    const user = session.user;
-    authContainer.classList.add('hidden');
-    appContainer.classList.remove('hidden');
-    usernameDiv.textContent = user.email;
-
-    // Récupère l'écu depuis la table profiles
-    let { data, error } = await client.from('profiles').select('ecu').eq('id', user.id).single();
-
-    if(error || !data){ 
-      await client.from('profiles').insert({id:user.id, username:user.email});
-      ecuDiv.textContent = 'Écu : 100';
-    }else{
-      ecuDiv.textContent = 'Écu : ' + data.ecu;
-    }
-  }else{
-    authContainer.classList.remove('hidden');
-    appContainer.classList.add('hidden');
+  const userId = localStorage.getItem("user_id");
+  if(!userId){
+    authContainer.classList.remove("hidden");
+    appContainer.classList.add("hidden");
+    return;
   }
+
+  const { data, error } = await client
+    .from("users")
+    .select("username, ecu")
+    .eq("id", userId)
+    .single();
+
+  if(error || !data){
+    localStorage.removeItem("user_id");
+    return checkUser();
+  }
+
+  document.getElementById("username-display").textContent = data.username;
+  document.getElementById("ecu").textContent = "Écu : " + data.ecu;
+
+  authContainer.classList.add("hidden");
+  appContainer.classList.remove("hidden");
 }
 
 // Inscription
-document.getElementById('signup-btn').addEventListener('click', async ()=>{
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
+document.getElementById("signup-btn").addEventListener("click", async () => {
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
 
-  const { data, error } = await client.auth.signUp({email, password});
+  const hash = await hashPassword(password);
 
-  if(error) message.textContent = error.message;
-  else message.textContent = 'Inscription réussie ! Vérifiez votre email';
+  const { data, error } = await client.from("users").insert({
+    username: username,
+    password_hash: hash
+  });
+
+  if(error) msg.textContent = error.message;
+  else msg.textContent = "Compte créé ! Vous pouvez vous connecter.";
 });
 
 // Connexion
-document.getElementById('login-btn').addEventListener('click', async ()=>{
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
+document.getElementById("login-btn").addEventListener("click", async () => {
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
 
-  const { data, error } = await client.auth.signInWithPassword({email, password});
+  const hash = await hashPassword(password);
 
-  if(error) message.textContent = error.message;
-  else checkUser();
-});
+  const { data, error } = await client
+    .from("users")
+    .select("*")
+    .eq("username", username)
+    .eq("password_hash", hash)
+    .single();
 
-// Déconnexion
-document.getElementById('logout-btn').addEventListener('click', async ()=>{
-  await client.auth.signOut();
+  if(error || !data){
+    msg.textContent = "Pseudo ou mot de passe incorrect.";
+    return;
+  }
+
+  localStorage.setItem("user_id", data.id);
+
   checkUser();
 });
 
-// Au chargement
+// Déconnexion
+document.getElementById("logout-btn").addEventListener("click", () => {
+  localStorage.removeItem("user_id");
+  checkUser();
+});
+
+// On charge l'état au démarrage
 checkUser();
 </script>
+
 </body>
 </html>
