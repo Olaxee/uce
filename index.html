@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Écu Game</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
   body{font-family:sans-serif;margin:0;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f0f0f0}
   .container{background:#fff;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);max-width:400px;width:90%}
@@ -36,7 +37,8 @@
 <script>
 const SUPABASE_URL = 'https://oaxaosribzxsocdngpjr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9heGFvc3JpYnp4c29jZG5ncGpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MTUzMjMsImV4cCI6MjA3OTM5MTMyM30.sFMWA7mF5eDHNITKbPOIJi1Ftf0qZ-V9N3ALVHcO-Uo';
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const authContainer = document.getElementById('auth-container');
 const appContainer = document.getElementById('app-container');
@@ -46,20 +48,21 @@ const ecuDiv = document.getElementById('ecu');
 
 // Vérifie si l'utilisateur est connecté
 async function checkUser() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await client.auth.getSession();
   if(session){
     const user = session.user;
     authContainer.classList.add('hidden');
     appContainer.classList.remove('hidden');
     usernameDiv.textContent = user.email;
+
     // Récupère l'écu depuis la table profiles
-    let { data, error } = await supabase.from('profiles').select('ecu').eq('id', user.id).single();
+    let { data, error } = await client.from('profiles').select('ecu').eq('id', user.id).single();
+
     if(error || !data){ 
-      // Création si n'existe pas
-      await supabase.from('profiles').insert({id:user.id, username:user.email});
+      await client.from('profiles').insert({id:user.id, username:user.email});
       ecuDiv.textContent = 'Écu : 100';
     }else{
-      ecuDiv.textContent = 'Écu : '+data.ecu;
+      ecuDiv.textContent = 'Écu : ' + data.ecu;
     }
   }else{
     authContainer.classList.remove('hidden');
@@ -71,7 +74,9 @@ async function checkUser() {
 document.getElementById('signup-btn').addEventListener('click', async ()=>{
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
-  const { data, error } = await supabase.auth.signUp({email,password});
+
+  const { data, error } = await client.auth.signUp({email, password});
+
   if(error) message.textContent = error.message;
   else message.textContent = 'Inscription réussie ! Vérifiez votre email';
 });
@@ -80,14 +85,16 @@ document.getElementById('signup-btn').addEventListener('click', async ()=>{
 document.getElementById('login-btn').addEventListener('click', async ()=>{
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
-  const { data, error } = await supabase.auth.signInWithPassword({email,password});
+
+  const { data, error } = await client.auth.signInWithPassword({email, password});
+
   if(error) message.textContent = error.message;
   else checkUser();
 });
 
 // Déconnexion
 document.getElementById('logout-btn').addEventListener('click', async ()=>{
-  await supabase.auth.signOut();
+  await client.auth.signOut();
   checkUser();
 });
 
