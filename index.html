@@ -3,36 +3,131 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Écu Game - Login Custom</title>
+
+<title>Écu Game</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-  body{font-family:sans-serif;margin:0;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f0f0f0}
-  .container{background:#fff;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);max-width:400px;width:90%}
-  input{width:100%;padding:10px;margin:5px 0;border-radius:5px;border:1px solid #ccc}
-  button{width:100%;padding:10px;margin:10px 0;border:none;border-radius:5px;background:#4caf50;color:white;font-weight:bold;cursor:pointer}
-  .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-  .hidden{display:none}
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-family: sans-serif;
+    background: #f2f2f2;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* Zone centrale */
+  #auth, #app {
+    width: 90%;
+    max-width: 350px;
+    text-align: center;
+  }
+
+  input, button {
+    width: 100%;
+    padding: 12px;
+    margin: 8px 0;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+  }
+
+  input {
+    background: white;
+    border: 1px solid #ccc;
+  }
+
+  button {
+    background: #4caf50;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  button:active {
+    opacity: 0.8;
+  }
+
+  #login-btn { background: #2196f3; }
+  #signup-btn { background: #4caf50; }
+
+  #message {
+    margin-top: 10px;
+    color: red;
+  }
+
+  /* Interface connectée */
+  #topbar {
+    position: fixed;
+    top: 10px;
+    width: 100%;
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+  }
+
+  #menu-btn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    font-size: 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  /* Popup */
+  #popup {
+    position: fixed;
+    top: 50px;
+    left: 10px;
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.15);
+    display: none;
+  }
+
+  #popup button {
+    background: #e53935;
+    margin-top: 10px;
+  }
 </style>
+
 </head>
 <body>
 
-<div class="container" id="auth-container">
-  <h2>Connexion / Inscription</h2>
-  <input type="text" id="username" placeholder="Pseudo">
-  <input type="password" id="password" placeholder="Mot de passe">
+<!-- PAGE AUTH -->
+<div id="auth">
+  <input id="username" type="text" placeholder="Pseudo">
+  <input id="password" type="password" placeholder="Mot de passe">
+
   <button id="login-btn">Se connecter</button>
   <button id="signup-btn">S'inscrire</button>
-  <p id="message" style="color:red"></p>
+
+  <div id="message"></div>
 </div>
 
-<div class="container hidden" id="app-container">
-  <div class="header">
-    <div id="username-display">Utilisateur</div>
-    <div id="ecu">Écu : 100</div>
-    <button id="logout-btn" style="background:#f44336">Déconnexion</button>
+<!-- PAGE APP -->
+<div id="app" style="display:none;">
+
+  <button id="menu-btn">☰</button>
+  <div id="topbar">Écu : 0</div>
+
+  <div id="popup">
+    <div id="popup-username"></div>
+    <button id="logout-btn">Déconnexion</button>
   </div>
-  <p>Bienvenue dans votre espace !</p>
+
 </div>
 
 <script>
@@ -41,64 +136,37 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Fonction de hashage SHA-256
 async function hashPassword(password) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
+  const data = new TextEncoder().encode(password);
   const hash = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2,"0")).join("");
+  return [...new Uint8Array(hash)].map(x => x.toString(16).padStart(2, "0")).join("");
 }
 
-const authContainer = document.getElementById('auth-container');
-const appContainer = document.getElementById('app-container');
-const msg = document.getElementById('message');
+/* -------- INSCRIPTION -------- */
+document.getElementById("signup-btn").addEventListener("click", async () => {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
 
-// Vérifier si l'utilisateur est connecté
-async function checkUser() {
-  const userId = localStorage.getItem("user_id");
-  if(!userId){
-    authContainer.classList.remove("hidden");
-    appContainer.classList.add("hidden");
+  if (!username || !password) {
+    message.textContent = "Complète tous les champs.";
     return;
   }
 
-  const { data, error } = await client
-    .from("users")
-    .select("username, ecu")
-    .eq("id", userId)
-    .single();
-
-  if(error || !data){
-    localStorage.removeItem("user_id");
-    return checkUser();
-  }
-
-  document.getElementById("username-display").textContent = data.username;
-  document.getElementById("ecu").textContent = "Écu : " + data.ecu;
-
-  authContainer.classList.add("hidden");
-  appContainer.classList.remove("hidden");
-}
-
-// Inscription
-document.getElementById("signup-btn").addEventListener("click", async () => {
-  const username = document.getElementById("username").value;
-  const password = document.getElementById("password").value;
-
   const hash = await hashPassword(password);
 
-  const { data, error } = await client.from("users").insert({
-    username: username,
-    password_hash: hash
+  const { error } = await client.from("users").insert({
+    username,
+    password_hash: hash,
+    ecu: 100
   });
 
-  if(error) msg.textContent = error.message;
-  else msg.textContent = "Compte créé ! Vous pouvez vous connecter.";
+  if (error) message.textContent = error.message;
+  else message.textContent = "Compte créé !";
 });
 
-// Connexion
+/* -------- CONNEXION -------- */
 document.getElementById("login-btn").addEventListener("click", async () => {
-  const username = document.getElementById("username").value;
+  const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
 
   const hash = await hashPassword(password);
@@ -110,24 +178,48 @@ document.getElementById("login-btn").addEventListener("click", async () => {
     .eq("password_hash", hash)
     .single();
 
-  if(error || !data){
-    msg.textContent = "Pseudo ou mot de passe incorrect.";
+  if (error || !data) {
+    message.textContent = "Pseudo ou mot de passe invalide.";
     return;
   }
 
   localStorage.setItem("user_id", data.id);
-
-  checkUser();
+  loadUser();
 });
 
-// Déconnexion
-document.getElementById("logout-btn").addEventListener("click", () => {
+/* -------- CHARGER INTERFACE -------- */
+async function loadUser() {
+  const id = localStorage.getItem("user_id");
+  if (!id) return;
+
+  const { data, error } = await client
+    .from("users")
+    .select("username, ecu")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) return;
+
+  document.getElementById("auth").style.display = "none";
+  document.getElementById("app").style.display = "block";
+
+  document.getElementById("topbar").textContent = "Écu : " + data.ecu;
+  document.getElementById("popup-username").textContent = "Pseudo : " + data.username;
+}
+
+/* -------- POPUP -------- */
+document.getElementById("menu-btn").onclick = () => {
+  const p = document.getElementById("popup");
+  p.style.display = p.style.display === "block" ? "none" : "block";
+};
+
+/* -------- DECONNEXION -------- */
+document.getElementById("logout-btn").onclick = () => {
   localStorage.removeItem("user_id");
-  checkUser();
-});
+  location.reload();
+};
 
-// On charge l'état au démarrage
-checkUser();
+loadUser();
 </script>
 
 </body>
